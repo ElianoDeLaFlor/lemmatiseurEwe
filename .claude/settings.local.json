@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//media/eliano/4662977562976907/Etude Paris 8/Semestres/Semestre 2/Ingénierie des langues DN26EM02/**)",
-      "Bash(dotnet new:*)",
-      "Bash(dotnet build:*)"
-    ]
-  }
-}
