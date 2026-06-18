@@ -1,0 +1,145 @@
+@page "/"
+@using System.ComponentModel.DataAnnotations
+@inject ICorpusCleaner CorpusCleaner
+
+
+<PageTitle>Lemmatiseur Ewe</PageTitle>
+
+<h1>Outil de lemmatisation : analyser et trouver des lemmes d'un texte</h1>
+
+<textarea class="form-control" style="min-width: 500px; min-height: 500px; resize: both;" aria-multiline="true" @bind="texte"></textarea>
+<br/>
+@if (!string.IsNullOrWhiteSpace(texte) && analyses is null)
+{
+    <span class="badge @(EstEwe(texte) ? "bg-success" : "bg-warning") fs-6 me-2">
+        @(EstEwe(texte) ? "Éwé détecté" : "Non-éwé")
+    </span>
+}
+<button class="btn btn-primary m-2" @onclick="Analyser" disabled="@enAnalyse">
+    @(enAnalyse ? "Analyse en cours..." : "Analyser")
+</button>
+<br/>
+ou selectionnez un fichier csv avec pour entête Index,Ewe et English
+<br/>
+<InputFile OnChange="@ChargerFichier" accept=".csv" />
+<br/>
+Ecrivez ou collez votre texte à analyser dans le champ ci dessus et appuyez sur le bouton 'OK' afin de lancer l'analyse.
+Cet outil en ligne gratuit vous permet de :
+<ul>
+    <li>Compter le nombre de mots</li>
+    <li>Compter le nombre de mots uniques</li>
+    <li>D'analyser les occurrences d'un texte dont le contenu a été lemmatisé (avec historique des remplacements)</li>
+</ul>
+
+@if (analyses?.ZipfData?.Any() == true)
+{
+    <h3>Distribution de Zipf</h3>
+    <table class="table table-striped tableFixHead table-hover">
+        <thead>
+            <tr>
+                <th>Rang</th>
+                <th>Mot/Token</th>
+                <th>Fréquence</th>
+                <th>Fréquence Relative</th>
+                <th>Zipf Théorique</th>
+                <th>Écart %</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in analyses.ZipfData)
+            {
+                <tr>
+                    <td>@item.Rang</td>
+                    <td>@item.Mot</td>
+                    <td>@item.Frequence</td>
+                    <td>@item.FrequenceRelative.ToString("P2")</td>
+                    <td>@item.ZipfTheorique.ToString("F2")</td>
+                    <td>@item.EcartPercent.ToString("F2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+<br/>
+@if (analyses?.NGramModels?.Any() == true)
+{
+    <h3>N-Grammes (Bigrammes)</h3>
+    <table class="table table-striped table-bordered tableFixHead">
+        <thead>
+            <tr>
+                <th>Bigramme</th>
+                <th>Occurrences</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in analyses.NGramModels)
+            {
+                <tr>
+                    <td>@item.Key</td>
+                    <td>@item.Value</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly HashSet<char> EweChars = [
+        'ɖ', 'ɛ', 'ƒ', 'ɣ', 'ɔ', 'ʋ', 'ŋ', 'Ŋ',
+        'Á', 'É', 'Í', 'Ó', 'Ú', 'À', 'È', 'Ì', 'Ò', 'Ù',
+        'ä', 'ë', 'ï', 'ö', 'ü', 'Ä', 'Ë', 'Ï', 'Ö', 'Ü'
+    ];
+
+    private string? texte;
+    private IBrowserFile? fichierSelectionne;
+    private bool enAnalyse;
+    private AnalyseResultat? analyses;
+
+    private static bool EstEwe(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        int eweCharCount = text.Count(c => EweChars.Contains(c));
+        return (double)eweCharCount / text.Length > 0.02;
+    }
+
+
+    private async Task ChargerFichier(InputFileChangeEventArgs e)
+    {
+        fichierSelectionne = e.File;
+        texte = $"Fichier sélectionné : {e.File.Name} ({e.File.Size} octets)";
+    }
+
+    private async Task Analyser()
+    {
+        enAnalyse = true;
+        try
+        {
+            AnalyseResultat? resultat = null;
+            if (fichierSelectionne != null)
+            {
+                using var stream = fichierSelectionne.OpenReadStream();
+                resultat = await CorpusCleaner.CleanCorpusFromStreamAsync(stream, "corpus_ewe_clean2.txt");
+            }
+            else if (!string.IsNullOrWhiteSpace(texte))
+            {
+                resultat = await CorpusCleaner.CleanCorpusFromStringAsync(texte, "corpus_ewe_clean3.txt");
+            }
+    
+            texte = resultat?.TexteNettoye.Any() == true ? "Analyse terminée avec succès !" : "Veuillez sélectionner un fichier ou saisir du texte à analyser.";
+    
+            // Recharger l'historique
+            try
+            {
+                analyses =  resultat;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Erreur rechargement historique : {ex.Message}");
+            }
+        }
+        finally
+        {
+            enAnalyse = false;
+        }
+    }
+}
