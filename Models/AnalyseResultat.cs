@@ -8,4 +8,5 @@ public class AnalyseResultat
     public IEnumerable<NGramModel> NGramModels { get; set; } = [];
     public string TexteNettoye { get; set; } = string.Empty;
     public DateTime DateAnalyse { get; set; }
+    public int TotalTokens { get; set; }
 }

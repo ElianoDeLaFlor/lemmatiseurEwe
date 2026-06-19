@@ -229,6 +229,7 @@ public class CorpusCleaner : ICorpusCleaner
         // 1. Segmentation Algorithmique (Tokenization)
         List<string> tokens = TokenizeEwe(cleanedText);
         int totalTokens = tokens.Count;
+        analyseResult.TotalTokens = totalTokens;
         Debug.WriteLine($"\n[1/4] Segmentation terminée : {totalTokens} tokens (mots) identifiés.");
         // 3. Analyse Statistique : Vérification de la Loi de Zipf
         var zipfDistribution = CalculateZipfDistribution(tokens);

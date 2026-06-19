@@ -33,7 +33,12 @@ Cet outil en ligne gratuit vous permet de :
 
 @if (analyses?.ZipfData?.Any() == true)
 {
+    <h3>Le nombre total de mots trouvés: @analyses.TotalTokens</h3>
+    <br/>
+    <h3>Le nombre total de mots unique trouvés: @analyses.ZipfData.Count()</h3>
+    <br/>
     <h3>Distribution de Zipf</h3>
+    <br/>
     <table class="table table-striped tableFixHead table-hover">
         <thead>
             <tr>
@@ -84,7 +89,9 @@ Cet outil en ligne gratuit vous permet de :
 }
 
 @code {
-    private static readonly HashSet<char> EweChars = [
+
+    private static readonly HashSet<char> EweChars =
+    [
         'ɖ', 'ɛ', 'ƒ', 'ɣ', 'ɔ', 'ʋ', 'ŋ', 'Ŋ',
         'Á', 'É', 'Í', 'Ó', 'Ú', 'À', 'È', 'Ì', 'Ò', 'Ù',
         'ä', 'ë', 'ï', 'ö', 'ü', 'Ä', 'Ë', 'Ï', 'Ö', 'Ü'
@@ -124,13 +131,13 @@ Cet outil en ligne gratuit vous permet de :
             {
                 resultat = await CorpusCleaner.CleanCorpusFromStringAsync(texte, "corpus_ewe_clean3.txt");
             }
-    
+
             texte = resultat?.TexteNettoye.Any() == true ? "Analyse terminée avec succès !" : "Veuillez sélectionner un fichier ou saisir du texte à analyser.";
-    
+
             // Recharger l'historique
             try
             {
-                analyses =  resultat;
+                analyses = resultat;
             }
             catch (Exception ex)
             {
@@ -142,4 +149,5 @@ Cet outil en ligne gratuit vous permet de :
             enAnalyse = false;
         }
     }
+
 }
