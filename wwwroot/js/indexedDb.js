@@ -1,26 +1,49 @@
 // IndexedDB avec un object store par type d'entité (approche relationnelle)
 // Chaque store possède ses propres colonnes (= propriétés du modèle C#)
 const DB_NAME = 'LemmatiseurDB';
-const DB_VERSION = 2;
+const DB_VERSION = 5;
 const STORE_NAMES = ['AnalyseResultat', 'CorpusData', 'ZipfItem', 'NGramModel'];
 
+// Clé primaire de chaque store (doit correspondre à la propriété du modèle C#)
+const STORE_KEY_PATHS = {
+    'AnalyseResultat': 'id',
+    'CorpusData': 'index',
+    'ZipfItem': 'rang',
+    'NGramModel': 'id'
+};
+
+// Historique des versions IndexedDB :
+//   v1 : store unique "entities"
+//   v2 : suppression de "entities", création des stores par type avec keyPath 'id'
+//   v3 : (migration interne, stores inchangés)
+//   v4 : version actuelle (stores : AnalyseResultat, CorpusData, ZipfItem, NGramModel)
+//   v5 : keyPath distinct par store (index pour CorpusData, rang pour ZipfItem, id pour les autres)
 function openDb() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
 
-            // Suppression de l'ancien store unique "entities" (v1)
+            // Nettoyage de l'ancien store unique "entities" (v1 → v2+)
             if (event.oldVersion < 2) {
                 if (db.objectStoreNames.contains('entities')) {
                     db.deleteObjectStore('entities');
                 }
             }
 
-            // Création d'un store par entité, chacun avec ses colonnes
+            // Pour les versions ≤ 4, supprimer les stores existants pour recréer avec le bon keyPath
+            if (event.oldVersion < 5) {
+                for (const name of STORE_NAMES) {
+                    if (db.objectStoreNames.contains(name)) {
+                        db.deleteObjectStore(name);
+                    }
+                }
+            }
+
+            // Création d'un store par entité avec son keyPath spécifique
             for (const name of STORE_NAMES) {
                 if (!db.objectStoreNames.contains(name)) {
-                    db.createObjectStore(name, { keyPath: 'id', autoIncrement: true });
+                    db.createObjectStore(name, { keyPath: STORE_KEY_PATHS[name], autoIncrement: true });
                 }
             }
         };
@@ -58,22 +81,24 @@ window.IndexedDbInterop = {
         });
     },
 
-    // Insère des éléments dans le store
+    // Insère ou remplace des éléments dans le store (upsert par clé)
     // itemsJson: tableau JSON des objets à stocker
     async add(storeName, itemsJson) {
         const db = await openDb();
         const items = JSON.parse(itemsJson);
+        const keyPath = STORE_KEY_PATHS[storeName];
         return new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, 'readwrite');
             const store = tx.objectStore(storeName);
             let count = 0;
             for (const item of items) {
-                // Si id = 0, on le retire pour laisser IndexedDB auto-générer
                 const obj = { ...item };
-                if (obj.id === 0 || obj.id === undefined) {
-                    delete obj.id;
+                // Si la clé = 0 ou undefined, on la retire pour auto-génération
+                if (obj[keyPath] === 0 || obj[keyPath] === undefined) {
+                    delete obj[keyPath];
                 }
-                const request = store.add(obj);
+                // put = upsert : écrase si la clé existe, crée sinon
+                const request = store.put(obj);
                 request.onsuccess = () => count++;
                 request.onerror = (e) => reject(e.target.error);
             }

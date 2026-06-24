@@ -250,7 +250,7 @@ public class CorpusCleaner : ICorpusCleaner
         var zipfDistribution = CalculateZipfDistribution(tokens);
         int totalTypes = zipfDistribution.Count;
         analyseResult.ZipfData = zipfDistribution;
-
+        var saved = await _ZipfItemDateRepository.InsertAsync(zipfDistribution);
         Debug.WriteLine("\nTop 5 des mots-outils (Zipf Validation) :");
         Debug.WriteLine($"[2/4] Analyse lexicale : {totalTypes} types (mots uniques) trouvés.");
         Debug.WriteLine($"      Ratio Type/Token (TTR) : {((double)totalTypes / totalTokens):P2}");
@@ -263,7 +263,7 @@ public class CorpusCleaner : ICorpusCleaner
         // 4. Extraction des N-grammes (Bigrammes de mots)
         var bigrams = ExtractWordBigrams(tokens);
         analyseResult.NGramModels = bigrams;
-
+        var savedbigram = await _NgramRepository.InsertAsync(bigrams);
         Debug.WriteLine($"\n[3/4] Extraction des N-grammes : {bigrams.Count} bigrammes uniques générés.");
         
         Debug.WriteLine("=== Phase 2 : Fin de l'analyse statistique ===");

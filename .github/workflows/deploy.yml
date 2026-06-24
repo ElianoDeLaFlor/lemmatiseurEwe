@@ -38,6 +38,11 @@ jobs:
           REPO_NAME="${{ github.event.repository.name }}"
           sed -i "s|<base href=\"/\"|<base href=\"/$REPO_NAME/\"|" publish/wwwroot/index.html
 
+      - name: Strip SRI integrity (GitHub Pages CDN change les hash)
+        run: |
+          sed -i 's/ integrity="[^"]*"//g' publish/wwwroot/index.html
+          sed -i 's/ crossorigin="[^"]*"//g' publish/wwwroot/index.html
+
       - name: Copy 404 fallback
         run: cp publish/wwwroot/index.html publish/wwwroot/404.html
 

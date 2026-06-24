@@ -29,12 +29,34 @@ public class IndexedDbRepository<T> : IGenericDataRepository<T> where T : class
 
     private readonly IJSRuntime _js;
     private readonly string _storeName;
+    private readonly PropertyInfo _keyProperty;
 
     public IndexedDbRepository(IJSRuntime js)
     {
         _js = js;
         _storeName = typeof(T).Name;
+        _keyProperty = ResolveKeyProperty();
     }
+
+    /// <summary>
+    /// Détecte la propriété servant de clé primaire.
+    /// Ordre de recherche : Id &gt; {TypeName}Id &gt; Index &gt; Rang &gt; première propriété.
+    /// </summary>
+    private static PropertyInfo ResolveKeyProperty()
+    {
+        var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        return props.FirstOrDefault(p =>
+                       string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase))
+                   ?? props.FirstOrDefault(p =>
+                       string.Equals(p.Name, $"{typeof(T).Name}Id", StringComparison.OrdinalIgnoreCase))
+                   ?? props.FirstOrDefault(p =>
+                       string.Equals(p.Name, "Index", StringComparison.OrdinalIgnoreCase))
+                   ?? props.FirstOrDefault(p =>
+                       string.Equals(p.Name, "Rang", StringComparison.OrdinalIgnoreCase))
+                   ?? props[0];
+    }
+
+    private int GetKeyValue(T item) => Convert.ToInt32(_keyProperty.GetValue(item));
 
     public async Task<T?> GetByIdAsync(int id)
     {
@@ -58,7 +80,6 @@ public class IndexedDbRepository<T> : IGenericDataRepository<T> where T : class
 
     public async Task<bool> InsertAsync(IEnumerable<T> items)
     {
-        // Sérialise les objets directement (propriétés = colonnes du store)
         var json = JsonSerializer.Serialize(items, JsonOptions);
         return await _js.InvokeAsync<bool>("IndexedDbInterop.add", _storeName, json);
     }
@@ -77,34 +98,24 @@ public class IndexedDbRepository<T> : IGenericDataRepository<T> where T : class
 
     public async Task<bool> DeleteAsync(T item)
     {
-        // Cherche la propriété Id pour supprimer par clé IndexedDB
-        var idProp = typeof(T).GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        if (idProp?.GetValue(item) is int id && id > 0)
+        var keyValue = GetKeyValue(item);
+        if (keyValue > 0)
         {
-            return await _js.InvokeAsync<bool>("IndexedDbInterop.delete", _storeName, id);
+            return await _js.InvokeAsync<bool>("IndexedDbInterop.delete", _storeName, keyValue);
         }
-        // Sans Id, on efface tout le store
         await ClearAsync();
         return true;
     }
 
     public async Task<bool> DeleteAsync(IEnumerable<T> items)
     {
-        var idProp = typeof(T).GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        var hasId = idProp?.PropertyType == typeof(int);
-
-        if (!hasId)
-        {
-            await ClearAsync();
-            return true;
-        }
-
         var deleted = false;
         foreach (var item in items)
         {
-            if (idProp!.GetValue(item) is int id && id > 0)
+            var keyValue = GetKeyValue(item);
+            if (keyValue > 0)
             {
-                deleted |= await _js.InvokeAsync<bool>("IndexedDbInterop.delete", _storeName, id);
+                deleted |= await _js.InvokeAsync<bool>("IndexedDbInterop.delete", _storeName, keyValue);
             }
         }
         return deleted;
